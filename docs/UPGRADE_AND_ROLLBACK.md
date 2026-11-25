@@ -1,5 +1,17 @@
 # Actualización y reversión de fases 3–7
 
+## Estado posterior a revisión #18
+
+Main0162720 ya integra #17. La corrección f5a0f81 exige autorización en todo commit nuevo y mantiene el cierre público false/null; #19 la incorpora por merge sin cambiar lib/tests/app ni el arnés nativo de recuperación. Orden pendiente #18 → #19, con nueva auditoría y CI de cada HEAD; no integrar o desplegar automáticamente. Para las primeras dos pruebas ficticias alojadas usar QA_HOSTED_EXECUTION_RUNBOOK, no otra instalación.
+
+El destino personal de fase 2 se actualizará **en su mismo Site y DB**, preservando origen, owner, permisos, variables propias y todas las filas, aplicando solo pendientes. Las copias y simulaciones de ensayo pertenecen al entorno del agente y ya están automatizadas. El respaldo recuperable del destino y su ledger/DDL requieren el mecanismo administrativo autorizado cuando llegue la ventana: SITES_ADMIN_SUPPORT_REQUEST documenta el bloqueo exacto, sin SQL/ledger remoto alternativo. No usar prepare:sites freshInstallationOnly para sustituir esa instalación. Las notas que siguen sobre #17 abierto y commits anteriores son registros históricos.
+
+## Entrega posterior a ca336b7 (25 noviembre)
+
+PR #17 (0bcab1c, CI verde) y PR #18 (b72081b, CI verde) siguen abiertos; no fusionar automáticamente. #18 prepara un permiso QA sin activar: el árbol compartido continúa false/null. La rama dependiente chore/phase2-upgrade-recovery añade `npm run verify:upgrade` a CI/AGENTS y ensaya export/restore nativo **LOCAL**, ledger 8→13 con solo cinco pendientes, 48 tablas/54 triggers, filas/vistas idénticas y reaplicación sin cambios. Ver [ensayo reproducible](PHASE2_UPGRADE_REHEARSAL.md).
+
+Para una fase 2 con datos reales, no publicar todavía: faltan respaldo recuperable del destino, ledger/DDL administrativo de Sites cotejados, restauración aislada y autorización específica. [Solicitud de soporte preparada](SITES_ADMIN_SUPPORT_REQUEST.md), no enviada. No usar la QA nueva ni Wrangler local como prueba de recuperación del servicio administrado. La instalación final conserva su mismo Site/DB/owner/origen/configuración y empieza con negocio deshabilitado. Todos los párrafos siguientes que citan main767f71f o entregas anteriores son evidencia histórica; la base actual de esta entrega es ca336b7.
+
 Los PR #4–#12 están integrados en main767f71f; eso no autoriza actualizar una instalación personal ni publicar en desarrollo. La issue #13 aprobó restauración lógica y0012 locales, pero aún faltan respaldo nativo/ledger, copia separada y autorización administrativa específica. Ver ISSUE13_ACCEPTANCE_REPORT. Cada instalación administra sus propios recursos y versiones; GitHub no despliega otros Sites.
 
 La entrega de bootstrap agrega 0011 (columna de metadatos) y una proyección para publicar en Sites sin cambiar los SQL originales. Seguir SITES_METADATA_BOOTSTRAP para una instalación nueva. No usar esa automatización para sobrescribir una instalación experimental que aplicó otra representación; inspeccionar hashes/ledger y obtener autorización de su propietario. La identidad y la revisión de negocio existentes no se reinician.
@@ -10,7 +22,7 @@ No publicar el lockfile basal del cierre: la auditoría detectó dependencias cr
 
 1. Confirmar main integrado y CI del commit seleccionado. #4–#12 ya están integrados; no recrear su cadena ni volver a fusionarla. Cualquier cambio posterior requiere nuevo PR, revisión y CI verde; sin force-push.
 2. Usar un clon limpio del oficial integrado o del commit exacto del fork aprobado. No copiar `.git`, configuración, D1, credenciales ni archivos ignorados de una instalación anterior. La historia pública aún contiene exposición conocida: no tratar el clon como historia purgada.
-3. Node >=22.13, npm ci; audit:dependencies, test:finance, test:mcp, test:audit, test:recovery, audit:public, tsc --noEmit, lint, verify:schema, build, verify:independent, verify:worker y verify:sites. Los tres últimos requieren el build. No aplicar SQL generado inesperadamente: verify:schema debe indicar cero cambios.
+3. Node >=22.13, npm ci; audit:dependencies, test:finance, test:mcp, test:audit, test:recovery, audit:public, tsc --noEmit, lint, verify:schema, build, verify:independent, verify:worker, verify:sites y verify:upgrade. Los tres anteriores a verify:upgrade requieren el build. No aplicar SQL generado inesperadamente: verify:schema debe indicar cero cambios.
 4. Conservar el manifiesto público con marcador. Crear un checkout privado de publicación desde ese commit; configurar únicamente su propio project_id. Ver NEW_INSTANCE_GUIDE y flujo oficial de Sites. La configuración privada no se devuelve al PR.
 
 ## Matriz de compatibilidad

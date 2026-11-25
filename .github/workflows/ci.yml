@@ -32,6 +32,7 @@ jobs:
       - run: npm run verify:independent
       - run: npm run verify:worker
       - run: npm run verify:sites
+      - run: npm run verify:upgrade
       - name: Scan for common credential patterns
         shell: bash
         run: |

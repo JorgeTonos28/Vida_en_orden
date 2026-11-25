@@ -66,6 +66,7 @@ npm run build
 npm run verify:independent
 npm run verify:worker
 npm run verify:sites
+npm run verify:upgrade
 ```
 
 Añade pruebas proporcionales para:
@@ -82,6 +83,8 @@ Añade pruebas proporcionales para:
 No declares aprobada una comprobación que no pudiste ejecutar. El script `scripts/qa-v2.mjs` modifica su entorno de prueba: nunca lo apuntes a producción.
 
 `npm run verify:independent` debe ejecutarse después del build. Crea una base D1 local temporal, aplica todas las migraciones SQL contiguas desde `drizzle/0000` en orden y la elimina al terminar; no acepta ni necesita credenciales productivas.
+
+`npm run verify:upgrade` no admite argumentos ni destinos: crea dos D1 locales temporales con datos ficticios, exporta/restaura mediante Wrangler nativo y conserva su ledger al aplicar solo las migraciones pendientes de fase 2. Nunca usa un Site, credenciales remotas o bases existentes. Borra sus dumps ficticios al finalizar. Su éxito no certifica un respaldo/ledger ni una actualización del servicio administrado de Sites; ver PHASE2_UPGRADE_REHEARSAL y SITES_ADMIN_SUPPORT_REQUEST.
 
 `verify:schema` ejecuta Drizzle en una copia temporal y exige cero migraciones nuevas: detecta divergencia ORM/snapshot sin aplicar SQL. `verify:worker`, después del build, arranca el Worker compilado sobre HTTPS loopback y D1 temporal, prueba las 31 lecturas, aprobación criptográfica sintética, denegaciones y QA de la interfaz. Nunca usa un Site, D1 remota ni credencial real. `qa-v2.mjs` rechaza destinos que no sean loopback y redirecciones; conserva esa restricción.
 
@@ -105,6 +108,7 @@ No declares aprobada una comprobación que no pudiste ejecutar. El script `scrip
 - El servidor debe fallar cerrado sin identidad o sin política de propietario.
 - Las consultas MCP deben permanecer tipadas, acotadas, paginadas y de solo lectura.
 - Las 31 lecturas conservan `readOnlyHint=true` y `destructiveHint=false`. Las herramientas opt-in de propuestas declaran sus efectos de metadatos con anotaciones correctas; no equivalen a escritura de negocio. Mantén `businessWritesEnabled=false` en fábrica y transporte hasta demostrar aprobación humana real en plataforma y revisión autorizada.
+- La distribución compartida conserva `MCP_BUSINESS_WRITES_ENABLED=false` y `QA_EXECUTION_RELEASE_ID=null`. Un perfil privado QA armado requiere revisión independiente del artefacto, autorización administrativa específica y permiso WebAuthn propio ligado a proyecto/origen/D1/owner/release/catálogo. Nunca portar ese overlay o permiso a main u otra instalación; cada propuesta necesita además su aprobación humana. Ver QA_EXECUTION_SECURITY_REVIEW. Las firmas sintéticas solo prueban aislamiento local, no intención humana ni ejecución alojada.
 - Reutiliza los servicios y cálculos de dominio existentes; no crees un segundo motor financiero.
 - Una revisión prepara el reemplazo sin revocar la vigente y publica head/invalidación/autorización/desafíos/auditoría en un solo lote CAS. Si falla, conserva la anterior; ante carrera consulta estado. Una revisión en curso no equivale a cancelar.
 - El presupuesto de preparación de 2.000 filas excluye el historial audit_log, pero no recorta ninguna de las otras 17 tablas. Su staging usa solo un marcador de contexto y eventos nuevos append-only; lecturas históricas nuevas requieren un conjunto explícito y revisión. Ver docs/PR12_AUDIT_FOLLOWUP.md; no borrar historia para eludir límites.

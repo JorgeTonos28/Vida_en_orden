@@ -6,6 +6,13 @@
 - Regresiones directas y MCP, comparación de todas las tablas ante denegación, permiso firmado más aprobación independiente, tarea/gasto ficticios y recuperación idempotente de recibos tras cierre. Fixtures legítimos usan la política criptográfica real y reloj vigente; no hay bypass de tests.
 - Main0162720 incorpora #17; cadena pendiente #18 → #19, con nueva revisión/CI requeridos. Procedimiento mínimo de QA alojada documentado sin habilitar cierres, crear Sites, instalar permisos ni desplegar. Actualización personal mantiene su gate administrativo de respaldo/ledger.
 
+## Ensayo nativo local de actualización y recuperación · 2026-11-25
+
+- Nuevo verify:upgrade en CI/AGENTS: export/restore con Wrangler LOCAL en dos D1 ficticias, ledger 8→13 con solo cinco pendientes y repetición sin cambios, todas las filas/vistas preservadas, 48 tablas/54 triggers/índice0012. Incluye historia de 2.100 movimientos y 5.000 eventos de auditoría; sin purga para sortear límites.
+- D1 foreign_key_check y comprobación SQLite del SQL exportado; documentada denegación nativa de integrity_check. No se certifican integridad física ni backup/ledger de Sites.
+- Regresión nativa de fallo tras CREATE INDEX de 0012 en un fixture temporal: revierte DDL/ledger, preserva filas/vistas y permite reintentar solo la pendiente. Migraciones compartidas intactas. Reconsulta nativa de QA confirma owner exclusivo, versión 1 y 18 tablas de negocio vacías.
+- Runbook de fase2, rollback conservador y solicitud administrativa de soporte preparados. Sin SQL nuevo, despliegue, cambio de instalación, envío a soporte o activación. Actualización productiva pendiente de respaldo recuperable/ledger/ensayo soportados y autorización.
+
 ## Control QA preparado, sin activación · 2026-11-25
 
 - Permiso administrativo WebAuthn temporal ligado a Site, origen, instalación, propietario, release y catálogo. Ceremonia humana separada que solo devuelve el artefacto; no instala permisos ni abre negocio. Cierres públicos false/null preservados, vencimiento SQL y huella de autorización auditados atómicamente.

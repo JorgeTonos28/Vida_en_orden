@@ -26,7 +26,8 @@
     "audit:dependencies": "npm audit --audit-level=low --registry=https://registry.npmjs.org --fetch-timeout=20000 --fetch-retries=0",
     "verify:hosting": "node scripts/hosting-migration-audit.mjs",
     "prepare:sites": "node --experimental-strip-types scripts/prepare-sites-source.mjs",
-    "verify:sites": "node --experimental-strip-types scripts/verify-worker-integration.mjs --sites"
+    "verify:sites": "node --experimental-strip-types scripts/verify-worker-integration.mjs --sites",
+    "verify:upgrade": "node --experimental-strip-types scripts/verify-phase2-upgrade.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

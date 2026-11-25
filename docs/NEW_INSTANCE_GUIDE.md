@@ -2,6 +2,8 @@
 
 Esta guía prepara una instancia nueva de Vida en Orden sin usar la cuenta, el Site, la base de datos, los secretos ni la autorización de otra persona. El repositorio es código compartido; los datos y permisos son siempre propios de cada instalación.
 
+Para actualizar una instalación existente con datos, seguir [UPGRADE_AND_ROLLBACK](UPGRADE_AND_ROLLBACK.md) y [PHASE2_UPGRADE_REHEARSAL](PHASE2_UPGRADE_REHEARSAL.md). No crear otro Site, reemplazar DB ni usar freshInstallationOnly para sobrescribirla. El ensayo nativo local no sustituye el respaldo/ledger administrativo de Sites; el bloqueo y la solicitud preparada están en SITES_ADMIN_SUPPORT_REQUEST.
+
 ## 1. Crear la copia de trabajo
 
 Usa un fork si vas a proponer cambios frecuentes al repositorio oficial, o un clon si solo vas a instalar y trabajar mediante ramas:
