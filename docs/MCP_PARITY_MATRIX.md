@@ -6,8 +6,11 @@ Main767f71f integra #4–#12. Issue #13 revalidó las 31 lecturas alojadas y ens
 
 Actualización 25 nov 2026: main d193562 integra también #14. QA nueva autorizada de issue #15, versión 1/entorno 1 hasta 0012,44 herramientas invocadas incluidas31 lecturas. Propuestas con tarea/cuenta ficticias solo staging, revisión/idempotencia/cancelación y commit denegado aprobados alojados, cero negocio. No equivale a aceptar ejecución financiera ni a portar la firma de otra instancia. Ver ISSUE15_QA_ACCEPTANCE_REPORT y UAT-15-RELOAD para interacción real pendiente.
 
+Actualización de candidatos posterior a ca336b7: PR #17 corrige referencias con error tipado y preserva aprobación. Gate QA implementado pero desarmado, con 43 operaciones y 55 ejecuciones por motor SQLite/D1, comparación exacta del delta y auditoría. Ver [matriz por operación](OPERATION_ACCEPTANCE_MATRIX.md): cobertura automática aprobada; todas las ejecuciones alojadas siguen bloqueadas por revisión/autorización y canal humano propio. Las 31 lecturas originales mantienen contrato. No confundir esta evidencia con la fuente d193562 todavía alojada.
+
 | Módulo | Herramientas | Estado | Evidencia principal |
 |---|---|---|---|
+| Autorización de ejecución | commit directo y transporte MCP | Corrección de revisión #18: autorizador obligatorio/estricto, SQL sin bypass nulo, recibos recuperables sin repetir negocio; distribución cerrada | tests/mcp-engine-authorization.test.ts, QA_HOSTED_EXECUTION_RUNBOOK |
 | Descubrimiento e identidad | `get_capabilities`, `get_my_profile` | Implementado | `lib/mcp/server.ts`, `tests/mcp-auth.test.ts`, `tests/mcp-server.test.ts` |
 | Tareas | `search_tasks`, `get_task`, `list_task_relations` | Implementado | `lib/mcp/read-service.ts`, `tests/mcp-phase2.test.ts` |
 | Áreas | `list_areas`, `get_area` | Implementado | `lib/mcp/read-service.ts` |

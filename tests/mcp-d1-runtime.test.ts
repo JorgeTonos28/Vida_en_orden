@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { getPlatformProxy, unstable_splitSqlQuery } from "wrangler";
 import { ProposalEngine } from "../lib/mcp/plans/engine.ts";
+import { syntheticQaAuthorizer } from "./helpers/qa-authorization.ts";
 import { actionRegistry } from "../lib/mcp/plans/catalog.ts";
 import type { PlatformProxy } from "wrangler";
 
@@ -16,7 +17,7 @@ test("D1 local de workerd: migraciones, aprobación, idempotencia y rollback rea
   const files=readdirSync(new URL("../drizzle/",import.meta.url)).filter(file=>/^\d{4}.*\.sql$/.test(file)).sort();
   for(const file of files){const statements=unstable_splitSqlQuery(readFileSync(new URL("../drizzle/"+file,import.meta.url),"utf8"));await db.batch(statements.map(sql=>db.prepare(sql)));}
   const actor={userId:"synthetic-runtime-owner",email:"owner@example.test",fullName:null};
-  const engine=new ProposalEngine(db,{actor,registry:actionRegistry,executionEnabled:true,verifier:{channel:"isolated-test",async verify(proof,challenge){if(proof!==challenge)throw Error("Test denied");return {credentialId:"synthetic-key"};}}});
+  const engine=new ProposalEngine(db,{actor,registry:actionRegistry,executionEnabled:true,authorizeExecution:syntheticQaAuthorizer(db,actor,actionRegistry),verifier:{channel:"isolated-test",async verify(proof,challenge){if(proof!==challenge)throw Error("Test denied");return {credentialId:"synthetic-key"};}}});
   const actions=[{actionId:"t",kind:"task.create",input:{title:"Synthetic runtime task"}}];
   const approve=async(id:string)=>{const c=await engine.requestApproval(id);await engine.approve(id,c.challenge,c.challenge);};
   const p=await engine.prepare(actions);assert.equal((await db.prepare("SELECT COUNT(*) n FROM home_tasks").first<{n:number}>())?.n,0);await approve(p.proposalId);

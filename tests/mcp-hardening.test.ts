@@ -9,6 +9,7 @@ import { actionRegistry } from "../lib/mcp/plans/catalog.ts";
 import { webAuthnVerifier } from "../lib/mcp/plans/approval.ts";
 import { callExtendedTool } from "../lib/mcp/plans/extended-tools.ts";
 import { testDatabase } from "./helpers/d1.ts";
+import { syntheticQaAuthorizer } from "./helpers/qa-authorization.ts";
 import { domainFixture, planAction as a } from "./helpers/domain.ts";
 import { credential } from "./helpers/webauthn.ts";
 const actor={userId:"synthetic-owner",email:"owner@example.test",fullName:null};
@@ -52,7 +53,7 @@ test("presupuesto de consultas y triggers ausentes fallan cerrados y limpian sta
 test("recuperación elimina solo leases vencidos propios y no conserva textos en métricas",async()=>{
  const f=domainFixture();try{
   const ids=[crypto.randomUUID(),crypto.randomUUID(),crypto.randomUUID()];
-  for(const [i,id] of ids.entries())f.sqlite.prepare("INSERT INTO mcp_stage_leases(stage_id,owner_id,expires_at) VALUES(?,?,?)").run(id,i===2?"other":actor.userId,i===1?Date.parse("2026-11-24T15:00:00Z"):0);
+  for(const [i,id] of ids.entries())f.sqlite.prepare("INSERT INTO mcp_stage_leases(stage_id,owner_id,expires_at) VALUES(?,?,?)").run(id,i===2?"other":actor.userId,i===1?Date.now()+60*60_000:0);
   await f.engine.maintenance();assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM mcp_stage_leases").get()?.n,2);
   await f.engine.prepare(actions);const metrics=String(f.sqlite.prepare("SELECT metrics FROM mcp_plan_audit WHERE event='prepared'").get()?.metrics);assert.ok(metrics.includes("domainQueries"));assert.ok(!metrics.includes("Synthetic")&&!metrics.includes(actor.email));
  }finally{f.close();}
@@ -61,7 +62,7 @@ test("recuperación elimina solo leases vencidos propios y no conserva textos en
 test("evidencia WebAuthn persiste tras commit, se reverifica y una clave retirada no ejecuta",async()=>{
  const f=testDatabase();try{
   const key=credential(actor.userId),origin="https://approval.example.test";
-  const create=(pinned:boolean)=>new ProposalEngine(f.database,{actor,registry:actionRegistry,executionEnabled:true,verifier:webAuthnVerifier({origin,credentials:pinned?[key.pin]:[]})});
+  const create=(pinned:boolean)=>new ProposalEngine(f.database,{actor,registry:actionRegistry,executionEnabled:true,authorizeExecution:syntheticQaAuthorizer(f.database,actor,actionRegistry),verifier:webAuthnVerifier({origin,credentials:pinned?[key.pin]:[]})});
   const engine=create(true),p=await engine.prepare(actions);const c=await engine.requestApproval(p.proposalId);await engine.approve(p.proposalId,c.challenge,key.assertion(c.challenge));
   await assert.rejects(()=>create(false).commit(p.proposalId,1,p.digest,"one"),{code:"approval_revoked"});assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM home_tasks").get()?.n,0);
   await engine.commit(p.proposalId,1,p.digest,"one");assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM mcp_approvals").get()?.n,0);assert.equal(f.sqlite.prepare("SELECT COUNT(*) n FROM mcp_approval_evidence").get()?.n,1);

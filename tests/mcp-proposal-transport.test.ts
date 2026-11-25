@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { testDatabase } from "./helpers/d1.ts";
+import { syntheticQaAuthorizer } from "./helpers/qa-authorization.ts";
 import { credential } from "./helpers/webauthn.ts";
 import { ProposalEngine } from "../lib/mcp/plans/engine.ts";
 import { actionRegistry } from "../lib/mcp/plans/catalog.ts";
@@ -16,7 +17,7 @@ const ownerPolicy={ownerUserId:actor.userId,ownerEmail:actor.email};
 const origin="https://approval.example.test";
 const identity={"oai-authenticated-user-id":actor.userId,"oai-authenticated-user-email":actor.email};
 const actions=[{actionId:"t",kind:"task.create",input:{title:"Synthetic approval task"}}];
-function fixture(){const db=testDatabase();const key=credential(actor.userId);const engine=new ProposalEngine(db.database,{actor,registry:actionRegistry,verifier:webAuthnVerifier({origin,credentials:[key.pin]}),executionEnabled:true});return {...db,key,engine};}
+function fixture(){const db=testDatabase();const key=credential(actor.userId);const engine=new ProposalEngine(db.database,{actor,registry:actionRegistry,verifier:webAuthnVerifier({origin,credentials:[key.pin]}),executionEnabled:true,authorizeExecution:syntheticQaAuthorizer(db.database,actor,actionRegistry)});return {...db,key,engine};}
 function rpc(name:string,args:unknown={},withIdentity=true){return new Request(origin+"/mcp",{method:"POST",headers:{"content-type":"application/json","MCP-Protocol-Version":MCP_PROTOCOL_VERSION,"Mcp-Method":"tools/call","Mcp-Name":name,...(withIdentity?identity:{})},body:JSON.stringify({jsonrpc:"2.0",id:1,method:"tools/call",params:{name,arguments:args,_meta:{"io.modelcontextprotocol/protocolVersion":MCP_PROTOCOL_VERSION,"io.modelcontextprotocol/clientInfo":{name:"isolated-test",version:"1"},"io.modelcontextprotocol/clientCapabilities":{}}}})});}
 const content=async<T>(response:Response)=>(await response.json() as {result:{structuredContent:T}}).result.structuredContent;
 

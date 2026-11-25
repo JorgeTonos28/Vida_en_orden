@@ -101,6 +101,7 @@ No declares aprobada una comprobación que no pudiste ejecutar. El script `scrip
 ## Seguridad del MCP
 
 - La identidad llega de Sites por headers autenticados; los argumentos de una herramienta nunca pueden elegir `userId`, propietario o scope.
+- Toda ejecución nueva exige autorización válida dentro de `ProposalEngine.commit()`, también por llamada directa; el transporte no sustituye esa guarda. Los fixtures positivos usan permisos sintéticos firmados mediante la política real, sin bypass de tests. Recuperar un recibo ya confirmado es lectura y no vuelve a ejecutar negocio.
 - El servidor debe fallar cerrado sin identidad o sin política de propietario.
 - Las consultas MCP deben permanecer tipadas, acotadas, paginadas y de solo lectura.
 - Las 31 lecturas conservan `readOnlyHint=true` y `destructiveHint=false`. Las herramientas opt-in de propuestas declaran sus efectos de metadatos con anotaciones correctas; no equivalen a escritura de negocio. Mantén `businessWritesEnabled=false` en fábrica y transporte hasta demostrar aprobación humana real en plataforma y revisión autorizada.

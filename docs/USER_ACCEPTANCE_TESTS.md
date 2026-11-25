@@ -1,5 +1,21 @@
 # Pruebas funcionales del propietario
 
+## Siguiente aceptación mínima después de #18 → #19
+
+#17 ya integrado; la corrección del motor de #18 requiere nueva revisión. Seguir [QA_HOSTED_EXECUTION_RUNBOOK](QA_HOSTED_EXECUTION_RUNBOOK.md), sin crear otra QA ni repetir las 43 operaciones manualmente. Caso alojado todavía **bloqueado por revisión/autorización y canal humano propio**: una tarea y una cuenta/gasto ficticios, saldo esperado 8750 centavos; el agente prepara/valida/ejecuta/compara filas, auditoría, idempotencia y cierre. El propietario solo registra su credencial si falta y firma personalmente permiso/propuestas; administración revisa/publica/configura el artefacto exacto bajo autorización específica. Al cierre, comprobar writes_disabled con una propuesta nueva sin ejecutar, no con un recibo ya confirmado. No hay prueba alojada nueva en esta revisión.
+
+## Candidato de ejecución QA — sin desplegar ni activar (25 noviembre)
+
+No pedir al propietario repetir las 43 pruebas automatizadas: pasan en SQLite/D1 con firmas sintéticas, persistencia exacta, auditoría e idempotencia; ver [matriz](OPERATION_ACCEPTANCE_MATRIX.md). Las siguientes acciones humanas solo se realizan después de revisión y autorización administrativa específicas. No usar una instalación personal ni credenciales de otro Site.
+
+| Caso/fase/estado | Requisitos y datos ficticios | Pasos exactos y comprobación persistida | Error/precaución |
+|---|---|---|---|
+| UAT-QA-PERMIT /3/Bloqueada | PR del gate aprobado, perfil privado QA revisado/publicado con autorización; clave propia registrada y fijada por administración | En la misma QA abrir /approvals/qa-permit; preparar permiso, revisar origen/vigencia/detalles, pulsar el botón WebAuthn y completar personalmente el autenticador. El artefacto se devuelve, installed=false; por sí solo no cambia D1 ni abre ejecución. Administración debe instalarlo solo en esa QA autorizada; el agente verifica health y sus bindings sin divulgar valores. | Cancelar autenticador: no permiso. Otro owner/origen/D1/release, firma inválida o caducada: writes_disabled. No publicar el artefacto ni modificar flags públicos. |
+| UAT-QA-EXEC /3–5/Bloqueada | Puerta anterior superada, recuperación QA verificada, solo datos QA ficticios; empezar con tarea «QA ejecución», después las dependencias de la matriz | El agente prepara acciones y muestra el diff; propietario abre el enlace de esa revisión, compara cada efecto y firma personalmente. Agente ejecuta una vez, relee todas las filas afectadas y auditoría, repite la clave y verifica el mismo recibo. Repetir por grupos compatibles de la matriz, con firma nueva por propuesta. | Rechazar/cancelar/caducar: cero efectos. Ante timeout consultar recibo antes de reintentar. Si persiste un efecto no aprobado, cerrar permisos y conservar evidencia; no compensar automáticamente finanzas. |
+| UAT-QA-REVOKE /3/Bloqueada | Administración QA disponible, sin requests en vuelo | Retirar permiso o esperar vencimiento y solicitar nueva ejecución: writes_disabled, filas/recibos previos intactos. Agente verifica ausencia de nuevos recibos y el estado real; no reutilizar firma vencida. | No certifica revocación instantánea de Workers ya admitidos; drenar y esperar vencimiento según runbook. |
+
+Recarga visual y desconexión/reconexión reales del plugin permanecen **bloqueadas por herramientas**: el helper oficial devuelve Access is denied al acceder a Chrome. La reconsulta MCP prueba persistencia de servidor, pero no demuestra esas interacciones visuales. No se eluden permisos del sistema ni se presentan como aprobadas.
+
 Estado vigente25 nov 2026: **QA nueva de issue #15 publicada y conectada, versión 1/entorno 1, fuente d193562, hasta 0012, sin negocio**. No contiene ni reutiliza la credencial de la instalación anterior.31 lecturas, propuestas ficticias/idempotencia/revisión/cancelación y writes_disabled ya ejecutados automáticamente en plataforma. No repetirlos a mano. Informe: [ISSUE15_QA_ACCEPTANCE_REPORT](ISSUE15_QA_ACCEPTANCE_REPORT.md). La evidencia de registro/firma en versión 2 que sigue pertenece exclusivamente al Site de desarrollo anterior.
 
 ## Aceptación progresiva de QA nueva (issue #15)

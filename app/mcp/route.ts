@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { handleMcpRequest } from "@/lib/mcp/server";
 import { runtimeProposalEngine, type ProposalEnvironment } from "@/lib/mcp/plans/runtime";
+import hosting from "@/.openai/hosting.json";
+import { QA_EXECUTION_RELEASE_ID } from "@/lib/mcp/plans/qa-execution-policy";
 
 export const runtime = "edge";
 
@@ -16,7 +18,7 @@ export async function POST(request: Request) {
     database: runtimeEnv.DB,
     extendedReadsEnabled: runtimeEnv.MCP_EXTENDED_READS_ENABLED === "true",
     ...(runtimeEnv.MCP_PROPOSALS_ENABLED === "true" && runtimeEnv.DB ? {
-      createProposalEngine: (actor) => runtimeProposalEngine(runtimeEnv.DB!, actor, runtimeEnv),
+      createProposalEngine: (actor) => runtimeProposalEngine(runtimeEnv.DB!, actor, runtimeEnv, {projectId:hosting.project_id,origin:new URL(request.url).origin,releaseId:QA_EXECUTION_RELEASE_ID}),
       approvalOrigin: runtimeEnv.MCP_APPROVAL_ORIGIN,
     } : {}),
     ownerPolicy: {

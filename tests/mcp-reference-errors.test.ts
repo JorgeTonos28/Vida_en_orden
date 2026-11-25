@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { testDatabase } from "./helpers/d1.ts";
+import { syntheticQaAuthorizer } from "./helpers/qa-authorization.ts";
 import { credential } from "./helpers/webauthn.ts";
 import { ProposalEngine } from "../lib/mcp/plans/engine.ts";
 import { actionRegistry } from "../lib/mcp/plans/catalog.ts";
@@ -10,7 +11,7 @@ import { PlanError } from "../lib/mcp/plans/types.ts";
 
 const actor={userId:"synthetic-reference-owner",email:"owner@example.test",fullName:null};
 const origin="https://approval.example.test";
-function fixture(){const db=testDatabase(),key=credential(actor.userId);return {...db,key,engine:new ProposalEngine(db.database,{actor,registry:actionRegistry,verifier:webAuthnVerifier({origin,credentials:[key.pin]}),executionEnabled:true})};}
+function fixture(){const db=testDatabase(),key=credential(actor.userId);return {...db,key,engine:new ProposalEngine(db.database,{actor,registry:actionRegistry,verifier:webAuthnVerifier({origin,credentials:[key.pin]}),executionEnabled:true,authorizeExecution:syntheticQaAuthorizer(db.database,actor,actionRegistry)})};}
 const rejected=(error:unknown)=>error instanceof PlanError&&error.code==="reference_not_found"&&error.status===404&&!error.message.includes("synthetic-missing");
 
 test("typed missing reference preserves approved revision, digest, evidence and usable authorization",async()=>{

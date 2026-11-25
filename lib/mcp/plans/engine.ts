@@ -2,6 +2,8 @@ import { financialImpact } from "./financial-impact.ts";
 import { initializeRuntimeMetadata, runtimeMetadata, requireRuntimeSchema, requireRuntimeMetadata, MCP_METADATA_VERSION } from "./metadata.ts";
 import { webAuthnVerifier } from "./approval.ts";
 import { DomainReferenceError } from "../../domain/errors.ts";
+import { MAX_QA_PERMIT_MS, qaExecutionAuthorizationSchema, type QaExecutionAuthorization } from "./qa-execution-policy.ts";
+import { MCP_BUSINESS_WRITES_ENABLED } from "../future-contracts.ts";
 import { queryBudget } from "./budget.ts";
 import { parseBoundedJson } from "./limits.ts";
 import { z } from "zod";
@@ -24,7 +26,7 @@ const MAX_CHANGED_ROWS = 100;
 const STATE_TABLES = BUSINESS_TABLES.filter(table=>table.name!=="audit_log");
 type RevisionBase = { proposalId:string; revision:number; expectedState:ProposalState; expectedDigest:string };
 type Stored = { proposal_id: string; revision: number; state: ProposalState; digest: string; payload: string; expires_at: number; base_revision: number };
-type EngineOptions = { actor: McpIdentity; registry: ActionRegistry; verifier: ApprovalVerifier; executionEnabled: boolean; now?: () => Date; ttlMs?: number; queryLimit?: number };
+type EngineOptions = { actor: McpIdentity; registry: ActionRegistry; verifier: ApprovalVerifier; executionEnabled: boolean; authorizeExecution?:()=>Promise<QaExecutionAuthorization>; now?: () => Date; ttlMs?: number; queryLimit?: number };
 
 function changes(before: Snapshot, after: Snapshot, tables:ReadonlyArray<typeof BUSINESS_TABLES[number]> = BUSINESS_TABLES): RowChange[] {
   const result: RowChange[] = [];
@@ -179,11 +181,12 @@ export class ProposalEngine {
         const next = {...previous};for(const [tableIndex,table] of tables.entries())next[table.name]=snapshots[tableIndex].results.map(row=>Object.fromEntries(table.columns.map(column=>[column,(row as Row)[column]??null])) as Row);
         const effects = changes(previous,next,tables);previous=next;
         const returnedId = value && typeof value === "object" && "id" in value ? String(value.id) : null;
-        let entityId = returnedId || (typeof validated.data.id === "string" ? validated.data.id : null);
+        let entityId = returnedId;
         if (!entityId) {
           const created = next[target.name].map((row) => String(row[target.primaryKey])).filter((id) => !oldIds.has(id));
           if (created.length === 1) entityId = created[0];
         }
+        if(!entityId&&typeof validated.data.id==="string")entityId=validated.data.id;
         references.set(action.actionId, entityId);
         results.push({ actionId: action.actionId, kind: action.kind, entityId, effects });
         resolved.push({ ...action, input: validated.data });
@@ -309,12 +312,27 @@ export class ProposalEngine {
     const row = await this.database.prepare("SELECT result FROM mcp_executions WHERE proposal_id=? AND revision=? AND owner_id=?").bind(proposalId, revision, this.owner()).first<{ result: string }>();
     return row ? JSON.parse(row.result) as ExecutionReceipt : null;
   }
+  private async requireExecutionAuthorization(): Promise<QaExecutionAuthorization> {
+    try {
+      if (typeof this.options.authorizeExecution !== "function") throw Error("Missing authorizer");
+      const authorization = qaExecutionAuthorizationSchema.parse(await this.options.authorizeExecution());
+      const now = this.now().getTime();
+      if (!Number.isSafeInteger(now) || authorization.expiresAt <= now || authorization.expiresAt - now > MAX_QA_PERMIT_MS) throw Error("Invalid authorization window");
+      return authorization;
+    } catch {
+      throw new PlanError("writes_disabled", "La ejecución QA no tiene una autorización válida y vigente.", 403);
+    }
+  }
+  async businessWritesEnabled():Promise<boolean>{
+    if(!MCP_BUSINESS_WRITES_ENABLED||!this.options.executionEnabled)return false;
+    try{await this.requireExecutionAuthorization();return true;}catch{return false;}
+  }
   async health() {
     await this.infrastructure();
     const metadata=await runtimeMetadata(this.database);
     const counts = await this.database.prepare("SELECT CASE WHEN p.expires_at<=? AND p.state IN ('VALIDATED','PENDING_APPROVAL','APPROVED') THEN 'EXPIRED' ELSE p.state END state,COUNT(*) total FROM mcp_proposals p JOIN mcp_proposal_heads h ON h.proposal_id=p.proposal_id AND h.revision=p.revision WHERE p.owner_id=? GROUP BY 1").bind(this.now().getTime(),this.owner()).all<{state:string;total:number}>();
     const leases = await this.database.prepare("SELECT COUNT(*) total,COALESCE(SUM(CASE WHEN expires_at<=? THEN 1 ELSE 0 END),0) expired FROM mcp_stage_leases WHERE owner_id=?").bind(this.now().getTime(),this.owner()).first<{total:number;expired:number}>();
-    return {schemaReady:true,metadataReady:metadata?.metadata_version===MCP_METADATA_VERSION,metadataVersion:metadata?.metadata_version??0,proposalsByState:counts.results,staging:leases,businessWritesEnabled:false,limits:{actions:20,rows:MAX_SNAPSHOT_ROWS,rowLimitScope:"non_audit_source_rows",auditContextRows:1,auditHistoryIncluded:false,snapshotBytes:MAX_SNAPSHOT_BYTES,diffRows:MAX_CHANGED_ROWS,diffBytes:MAX_DIFF_BYTES,domainQueries:400,prepareMilliseconds:60000}};
+    return {schemaReady:true,metadataReady:metadata?.metadata_version===MCP_METADATA_VERSION,metadataVersion:metadata?.metadata_version??0,proposalsByState:counts.results,staging:leases,businessWritesEnabled:await this.businessWritesEnabled(),limits:{actions:20,rows:MAX_SNAPSHOT_ROWS,rowLimitScope:"non_audit_source_rows",auditContextRows:1,auditHistoryIncluded:false,snapshotBytes:MAX_SNAPSHOT_BYTES,diffRows:MAX_CHANGED_ROWS,diffBytes:MAX_DIFF_BYTES,domainQueries:400,prepareMilliseconds:60000}};
   }
   async verifyExecution(proposalId:string,revision:number) {
     const receipt = await this.executionResult(proposalId,revision);if(!receipt)return {receiptPresent:false};
@@ -331,6 +349,10 @@ export class ProposalEngine {
     if(evidence){try{const archived=JSON.parse(evidence.evidence) as {channel:string;origin:string;publicKey:string;proof:unknown};channel=archived.channel;if(channel==="webauthn"){const verified=await webAuthnVerifier({origin:archived.origin,credentials:[{ownerId:this.owner(),id:evidence.credential_id,publicKey:archived.publicKey}]}).verify(archived.proof,evidence.challenge,this.options.actor);signatureVerified=verified.credentialId===evidence.credential_id;}}catch{signatureVerified=false;}}
     return {receiptPresent:true,digestVerified,stillMatches,revisionMatches,checkedRows:proposal.payload.changes.length,approvalEvidence:{channel,signatureVerifiedAgainstRecordedKey:signatureVerified},note:revisionMatches?"Verificación actual del diff persistido.":"Hubo cambios posteriores; el recibo original conserva su estado histórico."};
   }
+  async commitFromMcp(proposalId:string,revision:number,fingerprint:string,key:string):Promise<ExecutionReceipt>{
+    if(!MCP_BUSINESS_WRITES_ENABLED||!this.options.authorizeExecution)throw new PlanError("writes_disabled","Las escrituras MCP reales permanecen deshabilitadas.",403);
+    return this.commit(proposalId,revision,fingerprint,key);
+  }
   async commit(proposalId: string, revision: number, fingerprint: string, key: string): Promise<ExecutionReceipt> {
     if (!/^[a-f0-9]{64}$/.test(fingerprint) || !Number.isSafeInteger(revision) || revision < 1 || !key || key.length > 128) throw new PlanError("invalid_input", "Solicitud de ejecución inválida.", 400);
     const idempotencyHash = await digest({ owner: this.owner(), key });
@@ -339,6 +361,7 @@ export class ProposalEngine {
     const existing = await this.executionResult(proposalId, revision);
     if (existing) { if (existing.digest !== fingerprint) throw new PlanError("digest_mismatch", "La huella no coincide."); return existing; }
     if (!this.options.executionEnabled) throw new PlanError("writes_disabled", "Las escrituras MCP reales permanecen deshabilitadas.", 403);
+    const executionAuthorization = await this.requireExecutionAuthorization();
     const proposal = await this.get(proposalId, revision);
     await requireRuntimeMetadata(this.database);
     if(proposal.payload.metadataVersion!==MCP_METADATA_VERSION)throw new PlanError("proposal_version_unsupported","Prepara una propuesta nueva con esta versión del motor.",403);
@@ -359,7 +382,9 @@ export class ProposalEngine {
       if (archived.channel !== this.options.verifier.channel || (await this.options.verifier.verify(archived.proof,evidence.challenge,this.options.actor)).credentialId !== evidence.credential_id) throw Error("revoked");
     } catch { const concurrent = await this.executionResult(proposalId,revision);if(concurrent?.digest===fingerprint)return concurrent;throw new PlanError("approval_revoked","La credencial ya no es válida; prepara y aprueba nuevamente.",403); }
     const executionId = crypto.randomUUID();
-    const statements = [this.database.prepare("INSERT INTO mcp_execution_guards(execution_id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM mcp_proposals p JOIN mcp_proposal_heads h ON h.proposal_id=p.proposal_id AND h.revision=p.revision JOIN mcp_approvals a ON a.proposal_id=p.proposal_id AND a.revision=p.revision JOIN mcp_approval_evidence e ON e.proposal_id=a.proposal_id AND e.revision=a.revision AND e.owner_id=a.owner_id AND e.digest=a.digest AND e.challenge=a.challenge AND e.credential_id=a.credential_id JOIN mcp_installation i ON i.id=1 WHERE p.proposal_id=? AND p.revision=? AND p.owner_id=? AND p.state='APPROVED' AND p.digest=? AND p.expires_at>? AND a.expires_at>? AND a.owner_id=p.owner_id AND a.digest=p.digest AND i.installation_id=? AND i.business_revision=p.base_revision AND i.metadata_version=1 AND e.evidence=? AND a.credential_id=?) THEN 1 ELSE 0 END").bind(executionId, proposalId, revision, this.owner(), fingerprint, this.now().getTime(), this.now().getTime(), proposal.payload.installationId,evidence.evidence,evidence.credential_id)];
+    const executionDeadline = Math.min(executionAuthorization.expiresAt, proposal.payload.expiresAt);
+    const statements = [this.database.prepare("INSERT INTO mcp_execution_guards(execution_id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM mcp_proposals p JOIN mcp_proposal_heads h ON h.proposal_id=p.proposal_id AND h.revision=p.revision JOIN mcp_approvals a ON a.proposal_id=p.proposal_id AND a.revision=p.revision JOIN mcp_approval_evidence e ON e.proposal_id=a.proposal_id AND e.revision=a.revision AND e.owner_id=a.owner_id AND e.digest=a.digest AND e.challenge=a.challenge AND e.credential_id=a.credential_id JOIN mcp_installation i ON i.id=1 WHERE p.proposal_id=? AND p.revision=? AND p.owner_id=? AND p.state='APPROVED' AND p.digest=? AND p.expires_at>? AND a.expires_at>? AND a.owner_id=p.owner_id AND a.digest=p.digest AND i.installation_id=? AND i.business_revision=p.base_revision AND i.metadata_version=1 AND e.evidence=? AND a.credential_id=? AND ? > CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)) THEN 1 ELSE 0 END").bind(executionId, proposalId, revision, this.owner(), fingerprint, this.now().getTime(), this.now().getTime(), proposal.payload.installationId,evidence.evidence,evidence.credential_id,executionDeadline)];
+    statements.push(this.database.prepare("INSERT INTO mcp_plan_audit(id,owner_id,proposal_id,revision,event,created_at,metrics) VALUES(?,?,?,?,'qa_execution_authorized',?,?)").bind(crypto.randomUUID(),this.owner(),proposalId,revision,this.now().getTime(),JSON.stringify(executionAuthorization)));
     for (const change of proposal.payload.changes) {
       const table = BUSINESS_TABLES.find((entry) => entry.name === change.table);
       if (!table) throw new PlanError("invalid_delta", "Tabla no autorizada.", 403);

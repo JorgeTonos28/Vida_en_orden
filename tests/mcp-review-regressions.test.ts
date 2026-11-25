@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { testDatabase } from "./helpers/d1.ts";
+import { syntheticQaAuthorizer } from "./helpers/qa-authorization.ts";
 import { ProposalEngine } from "../lib/mcp/plans/engine.ts";
 import { actionRegistry } from "../lib/mcp/plans/catalog.ts";
 import { domainDatabase } from "../lib/domain/context.ts";
@@ -11,11 +12,11 @@ import { createMcpReadService } from "../lib/mcp/read-service.ts";
 import type { ActionRegistry, ApprovalVerifier, PlanAction } from "../lib/mcp/plans/types.ts";
 
 const actor={userId:"synthetic-review-owner",email:"owner@example.test",fullName:null};
-const now=()=>new Date("2026-11-24T14:00:00Z");
+const now=()=>new Date();
 const verifier:ApprovalVerifier={channel:"isolated-test",async verify(proof,challenge){if(proof!==challenge)throw Error("Synthetic proof denied");return {credentialId:"synthetic-key"};}};
 const task=(title="Synthetic review task"):PlanAction[]=>[{actionId:"t",kind:"task.create",input:{title}}];
 function fixture(registry:ActionRegistry=actionRegistry){
- const f=testDatabase(),engine=new ProposalEngine(f.database,{actor,registry,verifier,executionEnabled:true,now});
+ const f=testDatabase(),engine=new ProposalEngine(f.database,{actor,registry,verifier,executionEnabled:true,authorizeExecution:syntheticQaAuthorizer(f.database,actor,registry),now});
  const approve=async(id:string)=>{const c=await engine.requestApproval(id);return engine.approve(id,c.challenge,c.challenge);};
  const metadata=(id:string)=>JSON.stringify(["mcp_proposal_heads","mcp_proposals","mcp_approvals","mcp_approval_challenges","mcp_approval_evidence","mcp_plan_audit"].map(table=>f.sqlite.prepare(`SELECT * FROM ${table} WHERE proposal_id=? ORDER BY rowid`).all(id)));
  return {...f,engine,approve,metadata};

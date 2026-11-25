@@ -3,6 +3,16 @@ import test from "node:test";
 import { actionRegistry } from "../lib/mcp/plans/catalog.ts";
 import { domainFixture, planAction as a, localReference as ref } from "./helpers/domain.ts";
 
+test("duplicate references select the new task and cannot retarget the original",async()=>{
+ const f=domainFixture();try{
+  const made=await f.run([a("original","task.create",{title:"Synthetic original"})]),original=made.receipt.results[0].entityId!;
+  const copied=await f.run([a("copy","task.duplicate",{id:original}),a("edit","task.update",{id:ref("copy"),title:"Synthetic copy only"})]);
+  const copy=copied.receipt.results[0].entityId!;assert.notEqual(copy,original);
+  assert.equal(f.sqlite.prepare("SELECT title FROM home_tasks WHERE id=?").get(original)?.title,"Synthetic original");
+  assert.equal(f.sqlite.prepare("SELECT title FROM home_tasks WHERE id=?").get(copy)?.title,"Synthetic copy only");
+ }finally{f.close();}
+});
+
 test("catálogo no financiero cerrado y sin restauraciones, SQL ni privilegios", () => {
   assert.equal([...actionRegistry.values()].filter((entry)=>entry.phase===4).length,19);
   for (const definition of actionRegistry.values()) {

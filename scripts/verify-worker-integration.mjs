@@ -91,6 +91,12 @@ try{
  assert.equal((await tool("get_configuration",{section:"home"})).home,null);
  assert.equal((await tool("get_change_plan_health")).staging.total,0);
  console.log("PASS · Worker revision, stale cancellation, request reload, original idempotency, cancellation and zero business effects.");
+ const permitBootstrap=await request("/api/mcp/qa-permit");assert.equal(permitBootstrap.status,200);assert.equal(permitBootstrap.json.armed,false);assert.equal(permitBootstrap.json.businessWritesEnabled,false);
+ const permitHeaders={origin:base,cookie:permitBootstrap.headers["set-cookie"][0].split(";")[0],"x-veo-csrf":permitBootstrap.json.csrfToken};
+ assert.equal((await request("/api/mcp/qa-permit",{action:"options"},{...permitHeaders,"x-veo-csrf":"bad"})).status,403);
+ assert.equal((await request("/api/mcp/qa-permit",{action:"options"},permitHeaders)).json.error,"writes_disabled");
+ const permitPage=await request("/approvals/qa-permit");assert.equal(permitPage.status,200);assert.equal(permitPage.headers["x-frame-options"],"DENY");
+ console.log("PASS · Administrative QA permit route is unarmed, owner/CSRF guarded and cannot activate execution.");
  const ca=join(temp,"localhost-ca.pem");writeFileSync(ca,certificate);
  await new Promise((resolveChild,reject)=>{const child=spawn(process.execPath,["--dns-result-order=ipv4first",join(root,"scripts/qa-v2.mjs")],{cwd:root,env:{...process.env,QA_BASE_URL:base,NODE_EXTRA_CA_CERTS:ca},stdio:["ignore","pipe","pipe"]});child.stdout.on("data",chunk=>process.stdout.write(chunk));child.stderr.on("data",chunk=>process.stderr.write(chunk));child.once("error",reject);child.once("exit",code=>code===0?resolveChild():reject(Error("Local UI QA failed")));});
  console.log(`Worker integration verified (${sitesMode?"Sites schema projection":"full migration chain"}) with synthetic data and a self-signed loopback certificate; no remote database or Site contacted. Human/platform approval remains unverified.`);

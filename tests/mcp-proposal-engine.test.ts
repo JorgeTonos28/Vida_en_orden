@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 import { testDatabase } from "./helpers/d1.ts";
+import { syntheticQaAuthorizer } from "./helpers/qa-authorization.ts";
 import { action } from "../lib/domain/home-service.ts";
 import { runWithDomainDatabase } from "../lib/domain/context.ts";
 import { ProposalEngine } from "../lib/mcp/plans/engine.ts";
@@ -22,8 +23,8 @@ const verifier: ApprovalVerifier = { channel: "isolated-test", async verify(proo
 } };
 function fixture(enabled = true) {
   const db = testDatabase();
-  let clock = new Date("2026-11-24T14:00:00Z");
-  const engine = new ProposalEngine(db.database, { actor: owner, registry, verifier, executionEnabled: enabled, now: () => clock });
+  let clock = new Date();
+  const engine = new ProposalEngine(db.database, { actor: owner, registry, verifier, executionEnabled: enabled, authorizeExecution: syntheticQaAuthorizer(db.database, owner, registry), now: () => clock });
   const snapshot = () => JSON.stringify(BUSINESS_TABLES.map((table) => db.sqlite.prepare(`SELECT * FROM ${table.name} ORDER BY ${table.primaryKey}`).all()));
   const approve = async (proposalId: string) => {
     const request = await engine.requestApproval(proposalId);
